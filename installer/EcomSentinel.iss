@@ -49,7 +49,6 @@ Source: "{#SourcePath}\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{commonstartup}\Ecom Sentinel"; Filename: "{app}\EcomSentinel.exe"
 Name: "{group}\Ecom Sentinel"; Filename: "{app}\EcomSentinel.exe"
 Name: "{autodesktop}\Ecom Sentinel"; Filename: "{app}\EcomSentinel.exe"; Tasks: desktopicon
-Name: "{group}\Configuracion (appsettings.json)"; Filename: "notepad.exe"; Parameters: """{app}\appsettings.json"""
 Name: "{group}\Activar modo administrador"; Filename: "{app}\activar-admin.cmd"
 Name: "{group}\Desinstalar Ecom Sentinel"; Filename: "{uninstallexe}"
 

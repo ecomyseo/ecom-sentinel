@@ -9,6 +9,8 @@ switch (mode)
 {
     case "selftest":
         return SelfTest.Run();
+    case "dash-test":
+        return RunDashTest();
     case "scan-once":
     case "scanonce":
         return RunScanOnce();
@@ -41,6 +43,32 @@ static int RunTray()
     Application.SetCompatibleTextRenderingDefault(false);
     Application.Run(new TrayApp(cfg, notifier, poll, staging));
     return 0;
+}
+
+static int RunDashTest()
+{
+    var (cfg, notifier, _, _, _) = Build();
+    Application.EnableVisualStyles();
+    Application.SetCompatibleTextRenderingDefault(false);
+    var sample = new List<Finding>
+    {
+        new() { Severity = Severity.Critical, Category = "Robo de credenciales", Title = "Copia de 'Login Data'", Detail = @"C:\Temp\Login Data", Explanation = "x" },
+        new() { Severity = Severity.High, Category = "Control remoto", Title = "AnyDesk en ejecucion", ProcName = "anydesk", Detail = @"C:\Program Files\AnyDesk\AnyDesk.exe", Explanation = "x" },
+    };
+    try
+    {
+        using var f = new DashboardForm(sample, cfg, notifier);
+        f.CreateControl();
+        _ = f.Handle; // fuerza la creacion de la ventana y el layout de las 4 pestanas
+        Application.DoEvents();
+        Console.WriteLine("dash-test OK: el panel se construye y crea su ventana sin errores.");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("dash-test FALLO: " + ex);
+        return 1;
+    }
 }
 
 static int RunScanOnce()
@@ -169,6 +197,20 @@ static class ConfigStore
             cfg.WhitelistProcessNames = list.ToArray();
             Save(cfg);
         }
+    }
+
+    public static void RemoveWhitelistPath(SentinelConfig cfg, string value)
+    {
+        cfg.WhitelistPaths = cfg.WhitelistPaths
+            .Where(x => !string.Equals(x, value, StringComparison.OrdinalIgnoreCase)).ToArray();
+        Save(cfg);
+    }
+
+    public static void RemoveWhitelistProcess(SentinelConfig cfg, string value)
+    {
+        cfg.WhitelistProcessNames = cfg.WhitelistProcessNames
+            .Where(x => !string.Equals(x, value, StringComparison.OrdinalIgnoreCase)).ToArray();
+        Save(cfg);
     }
 }
 

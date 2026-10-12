@@ -21,6 +21,7 @@ public sealed class TrayApp : ApplicationContext
     private readonly ToolStripMenuItem _pauseItem;
     private readonly ToolStripMenuItem _devItem;
     private static readonly Dictionary<Color, Icon> IconCache = new();
+    private readonly List<Finding> _history = new();
     private bool _paused;
     private int _alerts;
     private Finding? _lastFinding;
@@ -55,12 +56,11 @@ public sealed class TrayApp : ApplicationContext
         menu.Items.Add(_devItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Marcar el ultimo aviso como seguro", null, (_, _) => MarkLastSafe()));
-        menu.Items.Add(new ToolStripMenuItem("Lista blanca y configuracion", null, (_, _) => OpenConfig()));
-        menu.Items.Add(new ToolStripMenuItem("Ver registro", null, (_, _) => OpenLog()));
+        menu.Items.Add(new ToolStripMenuItem("Panel de control (avisos, lista blanca, ajustes)", null, (_, _) => OpenDashboard()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Salir", null, (_, _) => ExitApp()));
         _icon.ContextMenuStrip = menu;
-        _icon.BalloonTipClicked += (_, _) => OpenLog();
+        _icon.BalloonTipClicked += (_, _) => OpenDashboard();
 
         _notifier.OnAlert = ShowAlert;
         _staging.Start(_notifier);
@@ -138,24 +138,20 @@ public sealed class TrayApp : ApplicationContext
             : "Modo normal (cliente): todos los detectores activos.", ToolTipIcon.Info);
     }
 
-    private void OpenConfig()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("notepad.exe", "\"" + ConfigStore.ConfigFile + "\"") { UseShellExecute = true });
-        }
-        catch { }
-    }
+    private DashboardForm? _dash;
 
-    private void OpenLog()
+    private void OpenDashboard()
     {
         try
         {
-            var path = _cfg.Alerts.LogFile;
-            if (!string.IsNullOrEmpty(path) && File.Exists(path))
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            else
-                Process.Start(new ProcessStartInfo(ConfigStore.Dir) { UseShellExecute = true });
+            if (!_ui.IsHandleCreated) return;
+            _ui.BeginInvoke((Action)(() =>
+            {
+                if (_dash != null && !_dash.IsDisposed) { _dash.Activate(); return; }
+                _dash = new DashboardForm(_history.ToList(), _cfg, _notifier);
+                _dash.FormClosed += (_, _) => _dash = null;
+                _dash.Show();
+            }));
         }
         catch { }
     }
@@ -168,6 +164,8 @@ public sealed class TrayApp : ApplicationContext
             _ui.BeginInvoke((Action)(() =>
             {
                 _lastFinding = f;
+                _history.Add(f);
+                if (_history.Count > 300) _history.RemoveRange(0, _history.Count - 300);
                 _alerts++;
                 _icon.Icon = MakeIcon(f.Severity >= Severity.High ? Color.Firebrick : Color.DarkOrange);
                 _icon.Text = $"Ecom Sentinel - {_alerts} aviso(s)";
@@ -175,7 +173,7 @@ public sealed class TrayApp : ApplicationContext
                 // Path FIRST so it is always visible even if the balloon truncates the rest.
                 var body = string.IsNullOrEmpty(f.Detail) ? "" : ("Donde: " + f.Detail + "\n\n");
                 body += f.Explanation;
-                body += "\n\n(Pulsa aqui para abrir el registro.)";
+                body += "\n\n(Pulsa aqui para abrir el panel de control.)";
                 _icon.ShowBalloonTip(20000, $"{f.Severity}: {f.Title}", body, tipIcon);
             }));
         }
