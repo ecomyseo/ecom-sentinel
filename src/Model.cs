@@ -20,6 +20,9 @@ public sealed class Finding
     /// <summary>Plain-language explanation of why this matters (shown to the user).</summary>
     public string Explanation { get; init; } = "";
 
+    /// <summary>Nombre de proceso (para la lista blanca por nombre), si aplica.</summary>
+    public string ProcName { get; init; } = "";
+
     /// <summary>Stable key used to avoid sending the same alert over and over.</summary>
     public string DedupKey { get; init; } = "";
 
@@ -65,6 +68,10 @@ public sealed class SentinelConfig
     public string[] WhitelistPaths { get; set; } = Array.Empty<string>();
 
     public AlertConfig Alerts { get; set; } = new();
+
+    /// <summary>Que detectores estan activos. En una maquina de desarrollo conviene apagar
+    /// UnsignedInTemp y Network (el "modo desarrollador"), que es el mayor ruido para un dev.</summary>
+    public DetectConfig Detect { get; set; } = new();
 
     public void FillDefaults()
     {
@@ -112,4 +119,13 @@ public sealed class SmtpConfig
     public string From { get; set; } = "";
     public string To { get; set; } = "";
     public bool UseSsl { get; set; } = true;
+}
+
+public sealed class DetectConfig
+{
+    public bool CredentialStaging { get; set; } = true; // robo de contrasenas/cookies (el nucleo)
+    public bool RemoteAccess { get; set; } = true;      // AnyDesk/RustDesk/TeamViewer...
+    public bool Persistence { get; set; } = true;       // nuevos arranques automaticos
+    public bool UnsignedInTemp { get; set; } = true;    // ruidoso en maquinas de desarrollo
+    public bool Network { get; set; } = true;           // conexiones de procesos vigilados
 }

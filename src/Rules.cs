@@ -31,6 +31,7 @@ public static class Rules
             {
                 Severity = Severity.High,
                 Category = "control-remoto",
+                ProcName = name,
                 Title = $"Programa de control remoto en ejecucion: {name}",
                 Detail = string.IsNullOrEmpty(path) ? "(ruta no disponible)" : path,
                 Explanation = "Un programa de control remoto permite manejar este equipo a distancia. "
@@ -43,6 +44,7 @@ public static class Rules
             {
                 Severity = Severity.High,
                 Category = "proceso-sospechoso",
+                ProcName = name,
                 Title = $"Ejecutable SIN FIRMA en carpeta temporal: {name}",
                 Detail = path,
                 Explanation = "Un programa sin firma digital corriendo desde una carpeta temporal es tipico "

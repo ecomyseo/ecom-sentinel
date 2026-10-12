@@ -29,7 +29,7 @@ static (SentinelConfig cfg, Notifier notifier, ProcessDetector proc, List<IPollD
     var cfg = ConfigStore.Load();
     var notifier = new Notifier(cfg.Alerts, cfg.WhitelistPaths);
     var proc = new ProcessDetector(cfg);
-    var poll = new List<IPollDetector> { proc, new PersistenceDetector(), new NetworkDetector(proc, cfg) };
+    var poll = new List<IPollDetector> { proc, new PersistenceDetector(cfg), new NetworkDetector(proc, cfg) };
     var staging = new CredentialStagingDetector(cfg);
     return (cfg, notifier, proc, poll, staging);
 }
@@ -157,6 +157,19 @@ static class ConfigStore
             Save(cfg);
         }
     }
+
+    public static void AddWhitelistProcess(SentinelConfig cfg, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var n = name.ToLowerInvariant();
+        var list = cfg.WhitelistProcessNames.ToList();
+        if (!list.Contains(n, StringComparer.OrdinalIgnoreCase))
+        {
+            list.Add(n);
+            cfg.WhitelistProcessNames = list.ToArray();
+            Save(cfg);
+        }
+    }
 }
 
 /// <summary>Deterministic tests of the pure rules - no OS state, safe to run anywhere.</summary>
@@ -195,6 +208,10 @@ static class SelfTest
             staging.Evaluate(Path.Combine(tmp, "Cookies"))?.Severity == Severity.Critical);
         Check("staging: fichero normal -> no alerta",
             staging.Evaluate(Path.Combine(tmp, "documento.txt")) == null);
+        Check("staging: perfil de navegador (Default/playwright) -> no alerta",
+            staging.Evaluate(Path.Combine(tmp, "playwright_x", "Default", "Login Data")) == null);
+        Check("staging: copia SUELTA 'Login Data' en temp -> Critical",
+            staging.Evaluate(Path.Combine(tmp, "Login Data"))?.Severity == Severity.Critical);
         Check("red: control remoto saliente -> Medium",
             Rules.EvaluateNetwork("x", 1, "8.8.8.8", 443, true, cfg)?.Severity == Severity.Medium);
         Check("red: no vigilado -> no alerta",

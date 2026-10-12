@@ -48,7 +48,7 @@ public sealed class ProcessDetector : IPollDetector
                 if (whitelisted) continue;
 
                 // Remote-access: cheap name check, every cycle.
-                if (_cfg.RemoteAccessTools.Any(t => ln.Contains(t)))
+                if (_cfg.Detect.RemoteAccess && _cfg.RemoteAccessTools.Any(t => ln.Contains(t)))
                 {
                     string rpath = SafePath(p);
                     var f = Rules.EvaluateProcess(name, rpath, true, _cfg);
@@ -56,6 +56,8 @@ public sealed class ProcessDetector : IPollDetector
                     RemoteAccessPids.Add(pid);
                     continue;
                 }
+
+                if (!_cfg.Detect.UnsignedInTemp) continue;
 
                 // Unsigned-in-temp: only evaluate a process ONCE, and only read the signature
                 // when the path is actually inside a temp folder (rare) - then cache it.
@@ -106,11 +108,15 @@ public sealed class ProcessDetector : IPollDetector
 /// <summary>Snapshots autostart locations and alerts when a NEW one appears.</summary>
 public sealed class PersistenceDetector : IPollDetector
 {
+    private readonly SentinelConfig _cfg;
     private HashSet<string>? _baseline;
     public string Name => "persistencia";
 
+    public PersistenceDetector(SentinelConfig cfg) => _cfg = cfg;
+
     public IEnumerable<Finding> Scan()
     {
+        if (!_cfg.Detect.Persistence) return Array.Empty<Finding>();
         var current = Snapshot();
         if (_baseline == null)
         {
@@ -272,6 +278,11 @@ public sealed class CredentialStagingDetector
             if (!_cfg.DeepStagingScan) return null;
             if (!LooksLikeBrowserSqlite(path)) return null;
         }
+
+        // Un PERFIL de navegador real (incluido el que crean Playwright/Puppeteer/Selenium en
+        // temp al automatizar) NO es una copia robada. Un infostealer copia el fichero SUELTO.
+        if (IsInsideBrowserProfile(path)) return null;
+
         return new Finding
         {
             Severity = Severity.Critical,
@@ -294,6 +305,18 @@ public sealed class CredentialStagingDetector
             if (f != null) notifier.Report(f);
         }
         catch { }
+    }
+
+    /// <summary>True si la ruta parece un PERFIL de navegador real (legitimo), no una copia suelta.</summary>
+    private static bool IsInsideBrowserProfile(string path)
+    {
+        var p = (path ?? "").ToLowerInvariant();
+        return p.Contains("\\default\\") || p.Contains("\\user data\\")
+            || p.Contains("playwright") || p.Contains("puppeteer") || p.Contains("selenium")
+            || p.Contains("webdriver") || p.Contains("chromedriver") || p.Contains("scoped_dir")
+            || p.Contains("\\profile ") || p.Contains(".default\\") || p.Contains(".default-release\\")
+            || p.Contains("\\mozilla\\") || p.Contains("\\chromium\\") || p.Contains("\\chrome-bin\\")
+            || p.Contains("\\profile.") || p.Contains("rust_mozprofile") || p.Contains("\\edge\\user data\\");
     }
 
     private static bool LooksLikeBrowserSqlite(string path)

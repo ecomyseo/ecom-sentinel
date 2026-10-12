@@ -11,7 +11,7 @@
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
     <ApplicationIcon>icon.ico</ApplicationIcon>
-    <Version>0.2.4</Version>
+    <Version>0.2.5</Version>
     <Company>Ecom Experts</Company>
     <Product>Ecom Sentinel</Product>
   </PropertyGroup>

@@ -19,6 +19,7 @@ public sealed class TrayApp : ApplicationContext
     private readonly System.Windows.Forms.Timer _timer;
     private readonly Control _ui;
     private readonly ToolStripMenuItem _pauseItem;
+    private readonly ToolStripMenuItem _devItem;
     private static readonly Dictionary<Color, Icon> IconCache = new();
     private bool _paused;
     private int _alerts;
@@ -47,6 +48,11 @@ public sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem("Escanear ahora", null, (_, _) => ScanNow()));
         _pauseItem = new ToolStripMenuItem("Pausar vigilancia", null, (_, _) => TogglePause());
         menu.Items.Add(_pauseItem);
+        _devItem = new ToolStripMenuItem("Modo desarrollador (silenciar ruido)", null, (_, _) => ToggleDevMode())
+        {
+            Checked = !_cfg.Detect.UnsignedInTemp && !_cfg.Detect.Network,
+        };
+        menu.Items.Add(_devItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Marcar el ultimo aviso como seguro", null, (_, _) => MarkLastSafe()));
         menu.Items.Add(new ToolStripMenuItem("Lista blanca y configuracion", null, (_, _) => OpenConfig()));
@@ -91,15 +97,45 @@ public sealed class TrayApp : ApplicationContext
 
     private void MarkLastSafe()
     {
-        if (_lastFinding == null || string.IsNullOrEmpty(_lastFinding.Detail))
+        var f = _lastFinding;
+        if (f == null)
         {
             _icon.ShowBalloonTip(2500, "Ecom Sentinel", "No hay ningun aviso reciente que marcar.", ToolTipIcon.Info);
             return;
         }
-        ConfigStore.AddWhitelistPath(_cfg, _lastFinding.Detail);
-        _notifier.UpdateWhitelist(_cfg.WhitelistPaths);
-        _icon.ShowBalloonTip(5000, "Anadido a la lista blanca",
-            "No se volvera a avisar de:\n" + _lastFinding.Detail, ToolTipIcon.Info);
+
+        string what;
+        if (!string.IsNullOrEmpty(f.ProcName))
+        {
+            // control-remoto / proceso-sospechoso: lista blanca por NOMBRE (anydesk, rustdesk...).
+            ConfigStore.AddWhitelistProcess(_cfg, f.ProcName);
+            what = "el programa '" + f.ProcName + "'";
+        }
+        else if (!string.IsNullOrEmpty(f.Detail))
+        {
+            ConfigStore.AddWhitelistPath(_cfg, f.Detail);
+            _notifier.UpdateWhitelist(_cfg.WhitelistPaths);
+            what = f.Detail;
+        }
+        else
+        {
+            _icon.ShowBalloonTip(2500, "Ecom Sentinel", "No hay nada que marcar en el ultimo aviso.", ToolTipIcon.Info);
+            return;
+        }
+
+        _icon.ShowBalloonTip(6000, "Anadido a la lista blanca", "No se volvera a avisar de:\n" + what, ToolTipIcon.Info);
+    }
+
+    private void ToggleDevMode()
+    {
+        bool dev = !_devItem.Checked;
+        _devItem.Checked = dev;
+        _cfg.Detect.UnsignedInTemp = !dev;
+        _cfg.Detect.Network = !dev;
+        ConfigStore.Save(_cfg);
+        _icon.ShowBalloonTip(7000, "Ecom Sentinel", dev
+            ? "Modo desarrollador ON: no se avisa de ejecutables sin firma en temp ni de conexiones. Se mantiene el robo de credenciales, la persistencia y el control remoto."
+            : "Modo normal (cliente): todos los detectores activos.", ToolTipIcon.Info);
     }
 
     private void OpenConfig()
