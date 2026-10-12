@@ -5,7 +5,7 @@
 ;   Sin firma, Windows mostrara "Editor desconocido" (SmartScreen) al instalar.
 
 #define AppName "Ecom Sentinel"
-#define AppVer "0.2.2"
+#define AppVer "0.2.3"
 #define Publisher "Ecom Experts"
 
 [Setup]

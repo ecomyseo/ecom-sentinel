@@ -61,6 +61,9 @@ public sealed class SentinelConfig
 
     public string[] WhitelistHosts { get; set; } = Array.Empty<string>();
 
+    /// <summary>Rutas/ficheros de confianza: si el aviso contiene uno, no se avisa. Lista blanca.</summary>
+    public string[] WhitelistPaths { get; set; } = Array.Empty<string>();
+
     public AlertConfig Alerts { get; set; } = new();
 
     public void FillDefaults()

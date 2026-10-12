@@ -5,7 +5,8 @@ using System.Text.Json;
 
 namespace EcomSentinel;
 
-/// <summary>Sends findings to the configured channels, once per finding (deduplicated).</summary>
+/// <summary>Sends findings to the configured channels, once per finding (deduplicated),
+/// skipping anything that matches the whitelist.</summary>
 public sealed class Notifier
 {
     private readonly AlertConfig _cfg;
@@ -14,11 +15,27 @@ public sealed class Notifier
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
     private readonly string _host = Environment.MachineName;
     private readonly string _user = Environment.UserName;
+    private string[] _whitelist;
 
     /// <summary>Optional UI hook (tray app) called once per de-duplicated finding.</summary>
     public Action<Finding>? OnAlert { get; set; }
 
-    public Notifier(AlertConfig cfg) => _cfg = cfg;
+    public Notifier(AlertConfig cfg, string[]? whitelistPaths = null)
+    {
+        _cfg = cfg;
+        _whitelist = whitelistPaths ?? Array.Empty<string>();
+    }
+
+    public void UpdateWhitelist(string[] paths) => _whitelist = paths ?? Array.Empty<string>();
+
+    private bool IsWhitelisted(Finding f)
+    {
+        if (_whitelist.Length == 0) return false;
+        var hay = $"{f.Detail} {f.Title}".ToLowerInvariant();
+        foreach (var w in _whitelist)
+            if (!string.IsNullOrEmpty(w) && hay.Contains(w.ToLowerInvariant())) return true;
+        return false;
+    }
 
     public void Report(IEnumerable<Finding> findings)
     {
@@ -28,6 +45,7 @@ public sealed class Notifier
     public void Report(Finding f)
     {
         if ((int)f.Severity < (int)_cfg.MinSeverity) return;
+        if (IsWhitelisted(f)) return;
 
         lock (_lock)
         {
@@ -42,7 +60,6 @@ public sealed class Notifier
         if (!string.IsNullOrEmpty(_cfg.LogFile)) TryLog(_cfg.LogFile, line);
         try { OnAlert?.Invoke(f); } catch { /* UI must never break alerting */ }
 
-        // Outbound channels: fire-and-forget, never crash the agent.
         if (!string.IsNullOrEmpty(_cfg.WebhookUrl)) _ = SafeAsync(() => SendWebhookAsync(f));
         var w = _cfg.WhatsApp;
         if (!string.IsNullOrEmpty(w.ApiUrl) && !string.IsNullOrEmpty(w.To)) _ = SafeAsync(() => SendWhatsAppAsync(f, line));
@@ -80,7 +97,7 @@ public sealed class Notifier
         var payload = JsonSerializer.Serialize(new
         {
             time = f.TimeUtc, severity = f.Severity.ToString(), category = f.Category,
-            title = f.Title, detail = f.Detail, host = _host, user = _user,
+            title = f.Title, detail = f.Detail, explanation = f.Explanation, host = _host, user = _user,
         });
         using var content = new StringContent(payload, Encoding.UTF8, "application/json");
         using var resp = await Http.PostAsync(_cfg.WebhookUrl, content).ConfigureAwait(false);
@@ -89,7 +106,7 @@ public sealed class Notifier
     private async Task SendWhatsAppAsync(Finding f, string line)
     {
         var w = _cfg.WhatsApp;
-        var payload = JsonSerializer.Serialize(new { to = w.To, text = "🛡 Ecom Sentinel: " + line, @event = "alerta" });
+        var payload = JsonSerializer.Serialize(new { to = w.To, text = "Ecom Sentinel: " + line, @event = "alerta" });
         using var req = new HttpRequestMessage(HttpMethod.Post, w.ApiUrl)
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json"),

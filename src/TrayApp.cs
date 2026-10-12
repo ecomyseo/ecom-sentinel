@@ -22,6 +22,7 @@ public sealed class TrayApp : ApplicationContext
     private static readonly Dictionary<Color, Icon> IconCache = new();
     private bool _paused;
     private int _alerts;
+    private Finding? _lastFinding;
 
     public TrayApp(SentinelConfig cfg, Notifier notifier, List<IPollDetector> poll, CredentialStagingDetector staging)
     {
@@ -46,6 +47,9 @@ public sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem("Escanear ahora", null, (_, _) => ScanNow()));
         _pauseItem = new ToolStripMenuItem("Pausar vigilancia", null, (_, _) => TogglePause());
         menu.Items.Add(_pauseItem);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(new ToolStripMenuItem("Marcar el ultimo aviso como seguro", null, (_, _) => MarkLastSafe()));
+        menu.Items.Add(new ToolStripMenuItem("Lista blanca y configuracion", null, (_, _) => OpenConfig()));
         menu.Items.Add(new ToolStripMenuItem("Ver registro", null, (_, _) => OpenLog()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Salir", null, (_, _) => ExitApp()));
@@ -85,14 +89,37 @@ public sealed class TrayApp : ApplicationContext
         _icon.Text = _paused ? "Ecom Sentinel - EN PAUSA" : "Ecom Sentinel - vigilancia activa";
     }
 
+    private void MarkLastSafe()
+    {
+        if (_lastFinding == null || string.IsNullOrEmpty(_lastFinding.Detail))
+        {
+            _icon.ShowBalloonTip(2500, "Ecom Sentinel", "No hay ningun aviso reciente que marcar.", ToolTipIcon.Info);
+            return;
+        }
+        ConfigStore.AddWhitelistPath(_cfg, _lastFinding.Detail);
+        _notifier.UpdateWhitelist(_cfg.WhitelistPaths);
+        _icon.ShowBalloonTip(5000, "Anadido a la lista blanca",
+            "No se volvera a avisar de:\n" + _lastFinding.Detail, ToolTipIcon.Info);
+    }
+
+    private void OpenConfig()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("notepad.exe", "\"" + ConfigStore.ConfigFile + "\"") { UseShellExecute = true });
+        }
+        catch { }
+    }
+
     private void OpenLog()
     {
         try
         {
-            if (string.IsNullOrEmpty(_cfg.Alerts.LogFile)) return;
-            var path = Path.GetFullPath(_cfg.Alerts.LogFile);
-            if (File.Exists(path))
+            var path = _cfg.Alerts.LogFile;
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
                 Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            else
+                Process.Start(new ProcessStartInfo(ConfigStore.Dir) { UseShellExecute = true });
         }
         catch { }
     }
@@ -104,15 +131,16 @@ public sealed class TrayApp : ApplicationContext
             if (!_ui.IsHandleCreated) return;
             _ui.BeginInvoke((Action)(() =>
             {
+                _lastFinding = f;
                 _alerts++;
                 _icon.Icon = MakeIcon(f.Severity >= Severity.High ? Color.Firebrick : Color.DarkOrange);
                 _icon.Text = $"Ecom Sentinel - {_alerts} aviso(s)";
                 var tipIcon = f.Severity >= Severity.High ? ToolTipIcon.Error : ToolTipIcon.Warning;
-                var body = f.Title;
-                if (!string.IsNullOrEmpty(f.Explanation)) body += "\n\n" + f.Explanation;
-                if (!string.IsNullOrEmpty(f.Detail)) body += "\n\nUbicacion: " + f.Detail;
-                body += "\n\n(Pulsa aqui para ver el registro completo.)";
-                _icon.ShowBalloonTip(15000, $"Ecom Sentinel - {f.Severity}", body, tipIcon);
+                // Path FIRST so it is always visible even if the balloon truncates the rest.
+                var body = string.IsNullOrEmpty(f.Detail) ? "" : ("Donde: " + f.Detail + "\n\n");
+                body += f.Explanation;
+                body += "\n\n(Pulsa aqui para abrir el registro.)";
+                _icon.ShowBalloonTip(20000, $"{f.Severity}: {f.Title}", body, tipIcon);
             }));
         }
         catch { }
@@ -148,8 +176,8 @@ public sealed class TrayApp : ApplicationContext
             using var brush = new SolidBrush(color);
             g.FillPolygon(brush, shield);
             using var pen = new Pen(Color.White, 2.4f);
-            g.DrawLine(pen, 16, 9, 16, 22);  // vertical bar of a "+"
-            g.DrawLine(pen, 9, 15, 23, 15);  // horizontal bar
+            g.DrawLine(pen, 16, 9, 16, 22);
+            g.DrawLine(pen, 9, 15, 23, 15);
         }
         var icon = Icon.FromHandle(bmp.GetHicon());
         IconCache[color] = icon;

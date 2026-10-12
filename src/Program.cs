@@ -13,7 +13,7 @@ switch (mode)
     case "scanonce":
         return RunScanOnce();
     case "run":
-        return RunLoop();          // headless resident loop (servers / no desktop)
+        return RunLoop();
     case "help":
     case "?":
         Console.WriteLine("Ecom Sentinel - uso: EcomSentinel [tray|run|scan-once|selftest]");
@@ -24,32 +24,10 @@ switch (mode)
         return RunTray();
 }
 
-static SentinelConfig LoadConfig()
-{
-    var cfg = new SentinelConfig();
-    try
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        if (File.Exists(path))
-        {
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            opts.Converters.Add(new JsonStringEnumConverter());
-            var loaded = JsonSerializer.Deserialize<SentinelConfig>(File.ReadAllText(path), opts);
-            if (loaded != null) cfg = loaded;
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"[sentinel] appsettings.json no valido, uso valores por defecto: {ex.Message}");
-    }
-    cfg.FillDefaults();
-    return cfg;
-}
-
 static (SentinelConfig cfg, Notifier notifier, ProcessDetector proc, List<IPollDetector> poll, CredentialStagingDetector staging) Build()
 {
-    var cfg = LoadConfig();
-    var notifier = new Notifier(cfg.Alerts);
+    var cfg = ConfigStore.Load();
+    var notifier = new Notifier(cfg.Alerts, cfg.WhitelistPaths);
     var proc = new ProcessDetector(cfg);
     var poll = new List<IPollDetector> { proc, new PersistenceDetector(), new NetworkDetector(proc, cfg) };
     var staging = new CredentialStagingDetector(cfg);
@@ -70,6 +48,7 @@ static int RunScanOnce()
     var (cfg, notifier, _, poll, staging) = Build();
     Console.WriteLine($"Ecom Sentinel v0.2 - escaneo unico en {Environment.MachineName} ({DateTime.Now})");
     Console.WriteLine($"Carpetas de staging vigiladas: {string.Join(", ", CredentialStagingDetector.StagingDirs())}");
+    Console.WriteLine($"Registro: {cfg.Alerts.LogFile}");
     int total = 0;
     foreach (var d in poll)
     {
@@ -108,6 +87,76 @@ static int RunLoop()
     finally { staging.Stop(); }
     Console.WriteLine("Ecom Sentinel detenido.");
     return 0;
+}
+
+/// <summary>
+/// Loads/saves the config from a WRITABLE location (%ProgramData%\EcomSentinel), because the
+/// install dir (Program Files) is read-only for a non-elevated agent. Seeds it from the
+/// installed default on first run. The log goes to the same writable folder.
+/// </summary>
+static class ConfigStore
+{
+    public static string Dir =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EcomSentinel");
+    public static string ConfigFile => Path.Combine(Dir, "appsettings.json");
+    public static string LogFile => Path.Combine(Dir, "sentinel.log");
+
+    private static JsonSerializerOptions Opts()
+    {
+        var o = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, WriteIndented = true };
+        o.Converters.Add(new JsonStringEnumConverter());
+        return o;
+    }
+
+    public static SentinelConfig Load()
+    {
+        try { Directory.CreateDirectory(Dir); } catch { }
+
+        var appDefault = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        try
+        {
+            if (!File.Exists(ConfigFile) && File.Exists(appDefault)) File.Copy(appDefault, ConfigFile);
+        }
+        catch { }
+
+        var cfg = new SentinelConfig();
+        var src = File.Exists(ConfigFile) ? ConfigFile : (File.Exists(appDefault) ? appDefault : null);
+        if (src != null)
+        {
+            try
+            {
+                var loaded = JsonSerializer.Deserialize<SentinelConfig>(File.ReadAllText(src), Opts());
+                if (loaded != null) cfg = loaded;
+            }
+            catch (Exception ex) { Console.Error.WriteLine($"[sentinel] config no valida, valores por defecto: {ex.Message}"); }
+        }
+
+        cfg.FillDefaults();
+        cfg.Alerts.LogFile = LogFile; // always writable
+        return cfg;
+    }
+
+    public static void Save(SentinelConfig cfg)
+    {
+        try
+        {
+            Directory.CreateDirectory(Dir);
+            File.WriteAllText(ConfigFile, JsonSerializer.Serialize(cfg, Opts()));
+        }
+        catch { }
+    }
+
+    public static void AddWhitelistPath(SentinelConfig cfg, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        var list = cfg.WhitelistPaths.ToList();
+        if (!list.Contains(path, StringComparer.OrdinalIgnoreCase))
+        {
+            list.Add(path);
+            cfg.WhitelistPaths = list.ToArray();
+            Save(cfg);
+        }
+    }
 }
 
 /// <summary>Deterministic tests of the pure rules - no OS state, safe to run anywhere.</summary>
@@ -152,6 +201,13 @@ static class SelfTest
         Check("IP privada no es publica", !Rules.IsPublicIp("192.168.1.10"));
         Check("persistencia -> High",
             Rules.EvaluatePersistence("HKCU\\...\\Run:evil", @"C:\x\evil.exe").Severity == Severity.High);
+
+        // Whitelist suppression
+        var n = new Notifier(new AlertConfig { Console = false, LogFile = "", MinSeverity = Severity.Medium },
+            new[] { "\\temp\\cookies" });
+        int got = 0; n.OnAlert = _ => got++;
+        n.Report(new Finding { Severity = Severity.Critical, Title = "x", Detail = @"C:\temp\Cookies", DedupKey = "a" });
+        Check("lista blanca suprime el aviso", got == 0);
 
         Console.WriteLine($"\nResultado selftest: {pass} OK, {fail} FALLO(S).");
         return fail == 0 ? 0 : 1;
