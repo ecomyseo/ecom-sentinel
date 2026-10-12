@@ -17,6 +17,9 @@ public sealed class Finding
     public string Title { get; init; } = "";
     public string Detail { get; init; } = "";
 
+    /// <summary>Plain-language explanation of why this matters (shown to the user).</summary>
+    public string Explanation { get; init; } = "";
+
     /// <summary>Stable key used to avoid sending the same alert over and over.</summary>
     public string DedupKey { get; init; } = "";
 
@@ -27,10 +30,16 @@ public sealed class Finding
 
 public sealed class SentinelConfig
 {
-    public int ScanIntervalSeconds { get; set; } = 15;
+    public int ScanIntervalSeconds { get; set; } = 20;
 
     /// <summary>Folders treated as "temporary" (filled from the environment when empty).</summary>
     public string[] TempDirs { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Read the first KB of each new temp file to spot a browser-DB copy by its contents.
+    /// OFF by default: it is heavier (reads files). Name matching alone is cheap and enough.
+    /// </summary>
+    public bool DeepStagingScan { get; set; } = false;
 
     public string[] RemoteAccessTools { get; set; } =
     {
@@ -46,7 +55,10 @@ public sealed class SentinelConfig
     public string[] CredentialFiles { get; set; } =
         { "login data", "cookies", "web data", "logins.json", "cookies.sqlite", "key4.db", "key3.db" };
 
-    public string[] WhitelistProcessNames { get; set; } = Array.Empty<string>();
+    /// <summary>Process names never flagged (your own tools). Add dev/IDE tools here.</summary>
+    public string[] WhitelistProcessNames { get; set; } =
+        { "language_server_windows_x64", "ecomsentinel" };
+
     public string[] WhitelistHosts { get; set; } = Array.Empty<string>();
 
     public AlertConfig Alerts { get; set; } = new();
@@ -72,7 +84,10 @@ public sealed class AlertConfig
 {
     public bool Console { get; set; } = true;
     public string LogFile { get; set; } = "sentinel.log";
-    public Severity MinSeverity { get; set; } = Severity.Medium;
+
+    /// <summary>Only severities >= this are alerted. High by default to keep noise low.</summary>
+    public Severity MinSeverity { get; set; } = Severity.High;
+
     public string WebhookUrl { get; set; } = "";
     public WhatsAppConfig WhatsApp { get; set; } = new();
     public SmtpConfig Smtp { get; set; } = new();

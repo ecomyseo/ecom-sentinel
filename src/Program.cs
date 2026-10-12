@@ -144,9 +144,9 @@ static class SelfTest
             staging.Evaluate(Path.Combine(tmp, "Cookies"))?.Severity == Severity.Critical);
         Check("staging: fichero normal -> no alerta",
             staging.Evaluate(Path.Combine(tmp, "documento.txt")) == null);
-        Check("red: proceso sospechoso saliente -> High",
-            Rules.EvaluateNetwork("x", 1, "8.8.8.8", 443, true, cfg)?.Severity == Severity.High);
-        Check("red: proceso no sospechoso -> no alerta",
+        Check("red: control remoto saliente -> Medium",
+            Rules.EvaluateNetwork("x", 1, "8.8.8.8", 443, true, cfg)?.Severity == Severity.Medium);
+        Check("red: no vigilado -> no alerta",
             Rules.EvaluateNetwork("x", 1, "8.8.8.8", 443, false, cfg) == null);
         Check("IP publica", Rules.IsPublicIp("8.8.8.8"));
         Check("IP privada no es publica", !Rules.IsPublicIp("192.168.1.10"));

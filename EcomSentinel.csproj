@@ -10,7 +10,8 @@
     <RootNamespace>EcomSentinel</RootNamespace>
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.1.0</Version>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <Version>0.2.2</Version>
     <Company>Ecom Experts</Company>
     <Product>Ecom Sentinel</Product>
   </PropertyGroup>

@@ -2,7 +2,7 @@ namespace EcomSentinel;
 
 /// <summary>
 /// Pure detection logic. No OS calls here so it can be unit-tested with synthetic
-/// inputs (see <c>--selftest</c>). The collectors in Detectors.cs feed real data in.
+/// inputs (see <c>--selftest</c>). Each finding carries a plain-language explanation.
 /// </summary>
 public static class Rules
 {
@@ -25,9 +25,11 @@ public static class Rules
             return new Finding
             {
                 Severity = Severity.High,
-                Category = "remote-access",
-                Title = $"Herramienta de control remoto en ejecucion: {name}",
-                Detail = path,
+                Category = "control-remoto",
+                Title = $"Programa de control remoto en ejecucion: {name}",
+                Detail = string.IsNullOrEmpty(path) ? "(ruta no disponible)" : path,
+                Explanation = "Un programa de control remoto permite manejar este equipo a distancia. "
+                            + "Si no lo instalaste tu (o tu informatico), alguien podria estar entrando.",
                 DedupKey = $"ra:{ln}:{path}",
             };
 
@@ -35,28 +37,32 @@ public static class Rules
             return new Finding
             {
                 Severity = Severity.High,
-                Category = "suspicious-process",
+                Category = "proceso-sospechoso",
                 Title = $"Ejecutable SIN FIRMA en carpeta temporal: {name}",
                 Detail = path,
+                Explanation = "Un programa sin firma digital corriendo desde una carpeta temporal es tipico "
+                            + "del malware; los programas legitimos suelen estar firmados y en 'Archivos de programa'.",
                 DedupKey = $"unsigned:{path}",
             };
 
         return null;
     }
 
-    /// <summary>The star rule: a non-browser process touching the browser's credential store.</summary>
+    /// <summary>A non-browser process touching the browser's credential store (live access).</summary>
     public static Finding? EvaluateCredentialAccess(string accessorName, int pid, string filePath, SentinelConfig cfg)
     {
         var ln = (accessorName ?? "").ToLowerInvariant();
-        if (cfg.Browsers.Any(b => ln.Contains(b))) return null;      // browser reading its own data = normal
+        if (cfg.Browsers.Any(b => ln.Contains(b))) return null;
         if (Whitelisted(ln, cfg)) return null;
 
         return new Finding
         {
             Severity = Severity.Critical,
-            Category = "credential-theft",
-            Title = $"Proceso NO-navegador accede a credenciales del navegador: {accessorName} (PID {pid})",
+            Category = "robo-credenciales",
+            Title = $"Un programa que NO es el navegador accede a tus contrasenas/cookies: {accessorName} (PID {pid})",
             Detail = filePath,
+            Explanation = "Solo el navegador deberia abrir su archivo de contrasenas/cookies. "
+                        + "Que otro programa lo lea es la senal clasica de un ladron de datos (infostealer).",
             DedupKey = $"cred:{pid}:{filePath.ToLowerInvariant()}",
         };
     }
@@ -65,24 +71,25 @@ public static class Rules
     {
         if (string.IsNullOrEmpty(filePath)) return false;
         var p = filePath.ToLowerInvariant();
-        // Must look like a browser profile path AND match a known credential file name.
         var looksBrowser = p.Contains("\\user data\\") || p.Contains("\\mozilla\\") || p.Contains("\\google\\")
                            || p.Contains("\\microsoft\\edge\\") || p.Contains("\\bravesoftware\\");
         if (!looksBrowser) return false;
         return cfg.CredentialFiles.Any(f => p.EndsWith("\\" + f) || p.EndsWith("/" + f));
     }
 
-    /// <summary>Outbound connection from a process already flagged as suspicious.</summary>
-    public static Finding? EvaluateNetwork(string procName, int pid, string remoteIp, int remotePort, bool suspiciousProcess, SentinelConfig cfg)
+    /// <summary>Outbound connection from a REMOTE-ACCESS process. Secondary signal -> Medium.</summary>
+    public static Finding? EvaluateNetwork(string procName, int pid, string remoteIp, int remotePort, bool watched, SentinelConfig cfg)
     {
-        if (!suspiciousProcess) return null;
+        if (!watched) return null;
         if (cfg.WhitelistHosts.Any(h => h == remoteIp)) return null;
         return new Finding
         {
-            Severity = Severity.High,
-            Category = "network",
-            Title = $"Proceso sospechoso con conexion saliente: {procName} -> {remoteIp}:{remotePort}",
-            Detail = $"PID {pid}",
+            Severity = Severity.Medium,
+            Category = "red",
+            Title = $"Programa de control remoto con conexion a Internet: {procName} -> {remoteIp}:{remotePort}",
+            Detail = $"PID {pid} -> {remoteIp}:{remotePort}",
+            Explanation = "Un programa de control remoto esta conectado a Internet; "
+                        + "podria ser una sesion remota en curso. Confirmalo si no la iniciaste tu.",
             DedupKey = $"net:{pid}:{remoteIp}:{remotePort}",
         };
     }
@@ -91,9 +98,11 @@ public static class Rules
         => new()
         {
             Severity = Severity.High,
-            Category = "persistence",
+            Category = "persistencia",
             Title = "Nuevo arranque automatico detectado",
             Detail = $"{location} => {entry}",
+            Explanation = "Se ha anadido un programa que se ejecutara solo cada vez que enciendas el equipo. "
+                        + "El malware lo usa para seguir activo aunque reinicies.",
             DedupKey = $"persist:{location}:{entry}".ToLowerInvariant(),
         };
 
@@ -112,9 +121,8 @@ public static class Rules
             if (b[0] == 0) return false;
             return true;
         }
-        // IPv6: treat link-local / unique-local / loopback as private.
         if (addr.IsIPv6LinkLocal || addr.IsIPv6SiteLocal) return false;
-        if (b.Length == 16 && (b[0] & 0xfe) == 0xfc) return false; // fc00::/7
+        if (b.Length == 16 && (b[0] & 0xfe) == 0xfc) return false;
         return true;
     }
 }

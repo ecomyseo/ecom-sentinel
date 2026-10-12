@@ -5,7 +5,7 @@
 ;   Sin firma, Windows mostrara "Editor desconocido" (SmartScreen) al instalar.
 
 #define AppName "Ecom Sentinel"
-#define AppVer "0.2.0"
+#define AppVer "0.2.2"
 #define Publisher "Ecom Experts"
 
 [Setup]
@@ -20,11 +20,15 @@ UninstallDisplayName=Ecom Sentinel
 UninstallDisplayIcon={app}\EcomSentinel.exe
 OutputDir={#SourcePath}\..\dist
 OutputBaseFilename=EcomSentinel-Setup-{#AppVer}
+SetupIconFile={#SourcePath}\..\icon.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64
+; Cierra el agente en ejecucion antes de actualizar (para poder reemplazar el .exe).
+CloseApplications=yes
+RestartApplications=no
 ; SignTool=standard
 
 [Languages]

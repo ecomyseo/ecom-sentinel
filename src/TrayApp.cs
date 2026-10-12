@@ -108,7 +108,11 @@ public sealed class TrayApp : ApplicationContext
                 _icon.Icon = MakeIcon(f.Severity >= Severity.High ? Color.Firebrick : Color.DarkOrange);
                 _icon.Text = $"Ecom Sentinel - {_alerts} aviso(s)";
                 var tipIcon = f.Severity >= Severity.High ? ToolTipIcon.Error : ToolTipIcon.Warning;
-                _icon.ShowBalloonTip(7000, $"Ecom Sentinel: {f.Severity}", f.Title, tipIcon);
+                var body = f.Title;
+                if (!string.IsNullOrEmpty(f.Explanation)) body += "\n\n" + f.Explanation;
+                if (!string.IsNullOrEmpty(f.Detail)) body += "\n\nUbicacion: " + f.Detail;
+                body += "\n\n(Pulsa aqui para ver el registro completo.)";
+                _icon.ShowBalloonTip(15000, $"Ecom Sentinel - {f.Severity}", body, tipIcon);
             }));
         }
         catch { }

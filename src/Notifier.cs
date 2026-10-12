@@ -34,7 +34,9 @@ public sealed class Notifier
             if (!string.IsNullOrEmpty(f.DedupKey) && !_seen.Add(f.DedupKey)) return;
         }
 
-        var line = $"{f} [host={_host} user={_user}]";
+        var line = $"{f}"
+                   + (string.IsNullOrEmpty(f.Explanation) ? "" : $" || {f.Explanation}")
+                   + $" [host={_host} user={_user}]";
 
         if (_cfg.Console) WriteConsole(f, line);
         if (!string.IsNullOrEmpty(_cfg.LogFile)) TryLog(_cfg.LogFile, line);
