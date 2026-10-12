@@ -1,0 +1,8 @@
+bin/
+obj/
+*.log
+run_live.log
+*.user
+.vs/
+publish/
+*.zip

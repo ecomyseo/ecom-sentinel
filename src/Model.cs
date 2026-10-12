@@ -1,0 +1,97 @@
+namespace EcomSentinel;
+
+public enum Severity
+{
+    Info = 0,
+    Medium = 1,
+    High = 2,
+    Critical = 3,
+}
+
+/// <summary>A single detection result produced by a detector.</summary>
+public sealed class Finding
+{
+    public DateTime TimeUtc { get; init; } = DateTime.UtcNow;
+    public Severity Severity { get; init; }
+    public string Category { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string Detail { get; init; } = "";
+
+    /// <summary>Stable key used to avoid sending the same alert over and over.</summary>
+    public string DedupKey { get; init; } = "";
+
+    public override string ToString()
+        => $"[{TimeUtc:yyyy-MM-dd HH:mm:ss}Z] {Severity.ToString().ToUpperInvariant()} {Category}: {Title}"
+           + (string.IsNullOrEmpty(Detail) ? "" : $" | {Detail}");
+}
+
+public sealed class SentinelConfig
+{
+    public int ScanIntervalSeconds { get; set; } = 15;
+
+    /// <summary>Folders treated as "temporary" (filled from the environment when empty).</summary>
+    public string[] TempDirs { get; set; } = Array.Empty<string>();
+
+    public string[] RemoteAccessTools { get; set; } =
+    {
+        "anydesk", "rustdesk", "teamviewer", "screenconnect", "connectwisecontrol",
+        "atera", "splashtop", "supremo", "dwagent", "dwservice", "gotoassist",
+        "remoteutilities", "ammyy", "ultraviewer", "chromeremotedesktop",
+    };
+
+    public string[] Browsers { get; set; } =
+        { "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "edge" };
+
+    /// <summary>Browser files that hold credentials / cookies (the infostealer target).</summary>
+    public string[] CredentialFiles { get; set; } =
+        { "login data", "cookies", "web data", "logins.json", "cookies.sqlite", "key4.db", "key3.db" };
+
+    public string[] WhitelistProcessNames { get; set; } = Array.Empty<string>();
+    public string[] WhitelistHosts { get; set; } = Array.Empty<string>();
+
+    public AlertConfig Alerts { get; set; } = new();
+
+    public void FillDefaults()
+    {
+        if (TempDirs.Length == 0)
+        {
+            var list = new List<string>();
+            foreach (var v in new[] { "TEMP", "TMP", "APPDATA", "LOCALAPPDATA" })
+            {
+                var p = Environment.GetEnvironmentVariable(v);
+                if (!string.IsNullOrEmpty(p)) list.Add(p);
+            }
+            var pd = Environment.GetEnvironmentVariable("ProgramData");
+            if (!string.IsNullOrEmpty(pd)) list.Add(pd);
+            TempDirs = list.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+    }
+}
+
+public sealed class AlertConfig
+{
+    public bool Console { get; set; } = true;
+    public string LogFile { get; set; } = "sentinel.log";
+    public Severity MinSeverity { get; set; } = Severity.Medium;
+    public string WebhookUrl { get; set; } = "";
+    public WhatsAppConfig WhatsApp { get; set; } = new();
+    public SmtpConfig Smtp { get; set; } = new();
+}
+
+public sealed class WhatsAppConfig
+{
+    public string ApiUrl { get; set; } = "";
+    public string ApiKey { get; set; } = "";
+    public string To { get; set; } = "";
+}
+
+public sealed class SmtpConfig
+{
+    public string Host { get; set; } = "";
+    public int Port { get; set; } = 587;
+    public string User { get; set; } = "";
+    public string Password { get; set; } = "";
+    public string From { get; set; } = "";
+    public string To { get; set; } = "";
+    public bool UseSsl { get; set; } = true;
+}
