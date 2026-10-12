@@ -15,6 +15,9 @@ public sealed class Notifier
     private readonly string _host = Environment.MachineName;
     private readonly string _user = Environment.UserName;
 
+    /// <summary>Optional UI hook (tray app) called once per de-duplicated finding.</summary>
+    public Action<Finding>? OnAlert { get; set; }
+
     public Notifier(AlertConfig cfg) => _cfg = cfg;
 
     public void Report(IEnumerable<Finding> findings)
@@ -35,6 +38,7 @@ public sealed class Notifier
 
         if (_cfg.Console) WriteConsole(f, line);
         if (!string.IsNullOrEmpty(_cfg.LogFile)) TryLog(_cfg.LogFile, line);
+        try { OnAlert?.Invoke(f); } catch { /* UI must never break alerting */ }
 
         // Outbound channels: fire-and-forget, never crash the agent.
         if (!string.IsNullOrEmpty(_cfg.WebhookUrl)) _ = SafeAsync(() => SendWebhookAsync(f));

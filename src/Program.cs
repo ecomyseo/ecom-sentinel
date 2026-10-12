@@ -1,8 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Windows.Forms;
 using EcomSentinel;
 
-var mode = args.Length > 0 ? args[0].ToLowerInvariant().TrimStart('-') : "run";
+var mode = args.Length > 0 ? args[0].ToLowerInvariant().TrimStart('-') : "tray";
 
 switch (mode)
 {
@@ -11,12 +12,16 @@ switch (mode)
     case "scan-once":
     case "scanonce":
         return RunScanOnce();
+    case "run":
+        return RunLoop();          // headless resident loop (servers / no desktop)
     case "help":
     case "?":
-        Console.WriteLine("Ecom Sentinel — uso: EcomSentinel [run|scan-once|selftest]");
+        Console.WriteLine("Ecom Sentinel - uso: EcomSentinel [tray|run|scan-once|selftest]");
+        Console.WriteLine("  (sin argumentos) -> icono en la barra del reloj (bandeja)");
         return 0;
+    case "tray":
     default:
-        return RunLoop();
+        return RunTray();
 }
 
 static SentinelConfig LoadConfig()
@@ -51,10 +56,19 @@ static (SentinelConfig cfg, Notifier notifier, ProcessDetector proc, List<IPollD
     return (cfg, notifier, proc, poll, staging);
 }
 
+static int RunTray()
+{
+    var (cfg, notifier, _, poll, staging) = Build();
+    Application.EnableVisualStyles();
+    Application.SetCompatibleTextRenderingDefault(false);
+    Application.Run(new TrayApp(cfg, notifier, poll, staging));
+    return 0;
+}
+
 static int RunScanOnce()
 {
     var (cfg, notifier, _, poll, staging) = Build();
-    Console.WriteLine($"Ecom Sentinel v0.1 — escaneo unico en {Environment.MachineName} ({DateTime.Now})");
+    Console.WriteLine($"Ecom Sentinel v0.2 - escaneo unico en {Environment.MachineName} ({DateTime.Now})");
     Console.WriteLine($"Carpetas de staging vigiladas: {string.Join(", ", CredentialStagingDetector.StagingDirs())}");
     int total = 0;
     foreach (var d in poll)
@@ -72,8 +86,7 @@ static int RunScanOnce()
 static int RunLoop()
 {
     var (cfg, notifier, _, poll, staging) = Build();
-    Console.WriteLine($"Ecom Sentinel v0.1 residente — {Environment.MachineName}. Ctrl+C para salir.");
-    Console.WriteLine($"Intervalo: {cfg.ScanIntervalSeconds}s. Avisos desde severidad: {cfg.Alerts.MinSeverity}.");
+    Console.WriteLine($"Ecom Sentinel v0.2 residente (consola) - {Environment.MachineName}. Ctrl+C para salir.");
     staging.Start(notifier);
 
     using var cts = new CancellationTokenSource();
@@ -97,7 +110,7 @@ static int RunLoop()
     return 0;
 }
 
-/// <summary>Deterministic tests of the pure rules — no OS state, safe to run anywhere.</summary>
+/// <summary>Deterministic tests of the pure rules - no OS state, safe to run anywhere.</summary>
 static class SelfTest
 {
     public static int Run()

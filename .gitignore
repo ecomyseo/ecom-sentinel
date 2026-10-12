@@ -5,4 +5,5 @@ run_live.log
 *.user
 .vs/
 publish/
+dist/
 *.zip
