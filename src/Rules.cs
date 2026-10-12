@@ -7,7 +7,11 @@ namespace EcomSentinel;
 public static class Rules
 {
     private static bool Whitelisted(string name, SentinelConfig cfg)
-        => cfg.WhitelistProcessNames.Any(w => string.Equals(w, name, StringComparison.OrdinalIgnoreCase));
+        => cfg.WhitelistProcessNames.Any(w => !string.IsNullOrEmpty(w) && name.Contains(w.ToLowerInvariant()));
+
+    /// <summary>El propio agente y su instalador nunca se marcan.</summary>
+    public static bool IsSelf(string name)
+        => (name ?? "").ToLowerInvariant().Contains("ecomsentinel");
 
     public static bool IsInTemp(string path, SentinelConfig cfg)
     {
@@ -19,6 +23,7 @@ public static class Rules
     public static Finding? EvaluateProcess(string name, string path, bool signed, SentinelConfig cfg)
     {
         var ln = (name ?? "").ToLowerInvariant();
+        if (IsSelf(ln)) return null;
         if (Whitelisted(ln, cfg)) return null;
 
         if (cfg.RemoteAccessTools.Any(t => ln.Contains(t)))

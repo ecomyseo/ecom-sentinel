@@ -5,7 +5,7 @@
 ;   Sin firma, Windows mostrara "Editor desconocido" (SmartScreen) al instalar.
 
 #define AppName "Ecom Sentinel"
-#define AppVer "0.2.3"
+#define AppVer "0.2.4"
 #define Publisher "Ecom Experts"
 
 [Setup]
@@ -34,6 +34,9 @@ RestartApplications=no
 [Languages]
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 
+[Tasks]
+Name: "desktopicon"; Description: "Crear un acceso directo en el escritorio"; GroupDescription: "Accesos directos adicionales:"
+
 [Files]
 ; Todo lo publicado excepto la configuracion (que se conserva entre actualizaciones).
 Source: "{#SourcePath}\..\publish\*"; DestDir: "{app}"; Excludes: "appsettings.json"; Flags: recursesubdirs ignoreversion
@@ -45,6 +48,7 @@ Source: "{#SourcePath}\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 ; Autoarranque para todos los usuarios al iniciar sesion (icono en la bandeja).
 Name: "{commonstartup}\Ecom Sentinel"; Filename: "{app}\EcomSentinel.exe"
 Name: "{group}\Ecom Sentinel"; Filename: "{app}\EcomSentinel.exe"
+Name: "{autodesktop}\Ecom Sentinel"; Filename: "{app}\EcomSentinel.exe"; Tasks: desktopicon
 Name: "{group}\Configuracion (appsettings.json)"; Filename: "notepad.exe"; Parameters: """{app}\appsettings.json"""
 Name: "{group}\Activar modo administrador"; Filename: "{app}\activar-admin.cmd"
 Name: "{group}\Desinstalar Ecom Sentinel"; Filename: "{uninstallexe}"

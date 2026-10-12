@@ -43,7 +43,8 @@ public sealed class ProcessDetector : IPollDetector
                 var name = p.ProcessName;
                 var ln = name.ToLowerInvariant();
 
-                bool whitelisted = _cfg.WhitelistProcessNames.Any(w => string.Equals(w, ln, StringComparison.OrdinalIgnoreCase));
+                if (Rules.IsSelf(ln)) continue; // nunca avisar del propio agente ni de su instalador
+                bool whitelisted = _cfg.WhitelistProcessNames.Any(w => !string.IsNullOrEmpty(w) && ln.Contains(w.ToLowerInvariant()));
                 if (whitelisted) continue;
 
                 // Remote-access: cheap name check, every cycle.

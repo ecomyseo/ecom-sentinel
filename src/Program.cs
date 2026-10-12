@@ -185,6 +185,8 @@ static class SelfTest
             Rules.EvaluateProcess("x", Path.Combine(tmp, "x.exe"), true, cfg) == null);
         Check("proceso normal firmado -> no alerta",
             Rules.EvaluateProcess("notepad", @"C:\Windows\System32\notepad.exe", true, cfg) == null);
+        Check("no avisa de si mismo (instalador) -> no alerta",
+            Rules.EvaluateProcess("EcomSentinel-Setup-0.2.4", Path.Combine(tmp, "x.tmp"), false, cfg) == null);
         Check("acceso a credenciales por no-navegador -> Critical",
             Rules.EvaluateCredentialAccess("stealer", 1234, @"C:\x\Login Data", cfg)?.Severity == Severity.Critical);
         Check("navegador accede a lo suyo -> no alerta",

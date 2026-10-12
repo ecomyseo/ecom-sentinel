@@ -7,3 +7,9 @@ run_live.log
 publish/
 dist/
 *.zip
+build.txt
+st.txt
+pub.txt
+iscc.txt
+release_notes.md
+makeicon.py
